@@ -8,13 +8,16 @@ func NewVTable() VTable {
 	return VTable{}
 }
 
-// row将被转置成列
-func CreateVTableByCol(row VRow) VTable {
-	return nil
+func CreateVTableByCol(col VColumn) (vt VTable, err error) {
+	vt = NewVTable()
+	_, err = vt.AddColumn(col)
+	return
 }
 
-func CreateVTableByRow(row VRow) VTable {
-	return nil
+func CreateVTableByRow(row VRow) (vt VTable, err error) {
+	vt = NewVTable()
+	_, err = vt.AddRow(row)
+	return
 }
 
 func CreateVTable(row, col int) (result VTable) {
@@ -25,19 +28,45 @@ func CreateVTable(row, col int) (result VTable) {
 	return
 }
 
+// 获取并移除第一行
 func (v VTable) FirstRow() (result VRow) {
+	if v.IsEmpty() {
+		return
+	}
+	result = v.GetRow(0)
+	v.DelRow(0)
 	return
 }
 
+// 获取并移除最后一行
 func (v VTable) LastRow() (result VRow) {
+	if v.IsEmpty() {
+		return
+	}
+	lastIndex := v.RowNum() - 1
+	result = v.GetRow(lastIndex)
+	v.DelRow(lastIndex)
 	return
 }
 
-func (v VTable) FirstCol() (result VRow) {
+// 获取并移除第一列
+func (v VTable) FirstCol() (result VColumn) {
+	if v.IsEmpty() {
+		return
+	}
+	result = v.GetColumn(0)
+	v.DelColumn(0)
 	return
 }
 
-func (v VTable) LastCol() (result VRow) {
+// 获取并移除最后一列
+func (v VTable) LastCol() (result VColumn) {
+	if v.IsEmpty() {
+		return
+	}
+	lastIndex := v.ColNum() - 1
+	result = v.GetColumn(lastIndex)
+	v.DelRow(lastIndex)
 	return
 }
 
@@ -70,6 +99,7 @@ func (v VTable) IsEmpty() bool {
 }
 
 // 追加行
+// rows不传则新增一行空行
 // rows里的列数和v里的列数必须相同
 // i 返回新添加的行首所在的行数， 行数从0开始
 func (v *VTable) AddRow(rows ...VRow) (i int, err error) {
@@ -102,15 +132,12 @@ func (v *VTable) AddRow(rows ...VRow) (i int, err error) {
 	}
 }
 
-func (v *VTable) AddColumn(colum VColumn) (i int, err error) {
-	return
-}
-
-// 水平追加
-// vts 里的行数和v里的行数必须相同
+// 追加列
+// columns不传则新增一列空列
+// columns里列的行数和v里的行数必须相同
 // i 返回新添加的列首所在的列数， 列数从0开始
-func (v *VTable) HorizontalMerge(vts ...VTable) (i int, err error) {
-	if len(vts) == 0 {
+func (v *VTable) AddColumn(columns ...VColumn) (i int, err error) {
+	if len(columns) == 0 {
 		if len(*v) == 0 {
 			*v = CreateVTable(1, 1)
 			return 0, nil
@@ -120,6 +147,70 @@ func (v *VTable) HorizontalMerge(vts ...VTable) (i int, err error) {
 			(*v)[i] = append((*v)[i], nil)
 		}
 		return v.ColNum() - 1, nil
+	} else {
+		if len(*v) == 0 {
+			rowNum := columns[0].RowNum()
+			for _, col := range columns {
+				if col.RowNum() != rowNum {
+					return -1, errors.New("VTable.AddColumn error : row count error")
+				}
+			}
+			for j := 0; j < rowNum; j++ {
+				var mergeRows VRow
+				for _, col := range columns {
+					mergeRows = append(mergeRows, col[j])
+				}
+				*v = append(*v, mergeRows)
+			}
+			return 0, nil
+		}
+
+		rowNum := v.RowNum()
+		for _, col := range columns {
+			if col.RowNum() != rowNum {
+				return -1, errors.New("VTable.AddColumn error : row count error")
+			}
+		}
+		i = v.ColNum()
+		for j := 0; j < rowNum; j++ {
+			var mergeRow VRow
+			for _, col := range columns {
+				mergeRow = append(mergeRow, col[j])
+			}
+			(*v)[j] = append((*v)[j], mergeRow...)
+		}
+		return
+	}
+}
+
+// 垂直合并
+// vts 里的行数和v里的行数必须相同
+// i 返回新添加的列首所在的列数， 列数从0开始
+func (v *VTable) VerticalMerge(vts ...VTable) (i int, err error) {
+	var j *int
+	for _, vt := range vts {
+		if j == nil {
+			*j, err = v.AddRow(vt...)
+		} else {
+			_, err = v.AddRow(vt...)
+		}
+
+		if err != nil {
+			return
+		}
+	}
+	if j != nil {
+		i = *j
+	}
+	return
+}
+
+// 横向合并
+// vts 里的行数和v里的行数必须相同
+// i 返回新添加的列首所在的列数， 列数从0开始
+func (v *VTable) HorizontalMerge(vts ...VTable) (i int, err error) {
+	if len(vts) == 0 {
+		return 0, nil
 	} else {
 		if len(*v) == 0 {
 			rowNum := vts[0].RowNum()
@@ -155,24 +246,38 @@ func (v *VTable) HorizontalMerge(vts ...VTable) (i int, err error) {
 	}
 }
 
-// 根据列编号创建新的VTable
-// 列编号从0开始
-func (v VTable) NewVTableByCol(colNums ...int) (result VTable, err error) {
-	if len(colNums) == 0 || v.IsEmpty() {
-		return
-	}
-	for _, row := range v {
-		var mergeRow VRow
-		for _, colNum := range colNums {
-			if colNum < 0 || colNum >= v.ColNum() {
-				err = errors.New("VTable.NewVTableByCol error : colNums error")
-				return
-			}
-			mergeRow = append(mergeRow, row[colNum])
+func (v VTable) FilterColumn(fn func(index int, col VColumn) bool) (result VTable) {
+	colNum := v.ColNum()
+	for i := 0; i < colNum; i++ {
+		column := v.GetColumn(i)
+		if fn(i, column) {
+			result.AddColumn(column)
 		}
-		result = append(result, mergeRow)
 	}
 	return
+}
+
+func (v VTable) FilterRow(fn func(index int, row VRow) bool) (result VTable) {
+	for index, item := range v {
+		if fn(index, item) {
+			result.AddRow(item)
+		}
+	}
+	return
+}
+
+func (v VTable) EachColumn(fn func(index int, col VColumn)) {
+	colNum := v.ColNum()
+	for i := 0; i < colNum; i++ {
+		column := v.GetColumn(i)
+		fn(i, column)
+	}
+}
+
+func (v VTable) EachRow(fn func(index int, row VRow)) {
+	for index, item := range v {
+		fn(index, item)
+	}
 }
 
 func (v *VTable) Clear() {
@@ -186,23 +291,86 @@ func (v VTable) Clone() (result VTable) {
 	return
 }
 
-func (v VTable) FillColumn(colNum int) VTable {
+func (v VTable) FillColumn(colNum int, col VColumn) (err error) {
+	if v.IsEmpty() || !v.ValidColNum(colNum) {
+		return
+	}
 
-	return v
-}
+	if v.RowNum() != col.RowNum() {
+		err = errors.New("VTable.FillColumn error : 'col' param error")
+		return
+	}
 
-func (v VTable) FillRow(rowNum int) {
+	for index, row := range v {
+		row[colNum] = col[index]
+	}
 	return
 }
 
-func (v VTable) GetColumn(colNum int) {
-
+func (v VTable) FillRow(rowNum int, row VRow) (err error) {
+	if v.IsEmpty() || !v.ValidRowNum(rowNum) {
+		return
+	}
+	if v.ColNum() != row.ColNum() {
+		err = errors.New("VTable.FillRow error : 'row' param error")
+		return
+	}
+	v[rowNum] = row
 	return
 }
 
+func (v VTable) ValidColNum(colNum int) bool {
+	return colNum >= 0 && colNum < v.ColNum()
+}
+
+func (v VTable) ValidRowNum(rowNum int) bool {
+	return rowNum < 0 && rowNum < v.RowNum()
+}
+
+// colNum 从0开始
+func (v VTable) GetColumn(colNum int) (result VColumn) {
+	if v.IsEmpty() || !v.ValidColNum(colNum) {
+		return
+	}
+	for i := 0; i < len(v); i++ {
+		result = append(result, v[i][colNum])
+	}
+	return
+}
+
+// rowNum 从0开始
 func (v VTable) GetRow(rowNum int) (result VRow) {
-	if v.IsEmpty() || rowNum < 0 || rowNum >= v.RowNum() {
+	if v.IsEmpty() || !v.ValidRowNum(rowNum) {
 		return
 	}
 	return v[rowNum]
+}
+
+// rowNum及colNum从0开始
+func (v VTable) GetCell(rowNum int, colNum int) (result *VCell) {
+	if v.IsEmpty() {
+		return
+	}
+	if v.ValidRowNum(rowNum) && v.ValidColNum(colNum) {
+		return v[rowNum][colNum]
+	}
+	return
+}
+
+func (v VTable) DelColumn(colNum int) {
+	if v.IsEmpty() || !v.ValidColNum(colNum) {
+		return
+	}
+	for i := 0; i < v.RowNum(); i++ {
+		v[i] = v[i].DelCol(colNum)
+	}
+}
+
+func (v *VTable) DelRow(rowNum int) {
+	if v.IsEmpty() || !v.ValidRowNum(rowNum) {
+		return
+	}
+	copy((*v)[rowNum:], (*v)[rowNum+1:])
+	(*v)[len(*v)-1] = nil
+	*v = (*v)[:len(*v)-1]
 }
