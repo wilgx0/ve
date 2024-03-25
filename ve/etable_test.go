@@ -47,6 +47,12 @@ func getTestData() []*Student {
 			Grade: 2,
 			Score: 1,
 		},
+		{
+			Name:  "小白",
+			Class: "三班",
+			Grade: 3,
+			Score: 2,
+		},
 	}
 
 }
@@ -105,6 +111,7 @@ func TestSum1(t *testing.T) {
 
 	et := NewETable()
 	AddCol(et, groupByClass.GetKeys(), "class")
+
 	AddColByFn(et, func(row *ERow, i int) interface{} {
 		return groupByClass.GetValue(row.FirstCell().String()).Filter(func(student *Student) bool {
 			return student.Grade == 1
@@ -122,7 +129,17 @@ func TestSum1(t *testing.T) {
 	}, "grade2")
 
 	AddColByFn(et, func(row *ERow, i int) interface{} {
-		return row.SumUint64()
+		return groupByClass.GetValue(row.FirstCell().String()).Filter(func(student *Student) bool {
+			return student.Grade == 3
+		}).SumUint64(func(student *Student) uint64 {
+			return uint64(student.Score)
+		})
+	}, "grade3")
+
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
 	}, "total")
 
 	AddRowByFn(et, func(col *ECol, i int) interface{} {
@@ -130,7 +147,17 @@ func TestSum1(t *testing.T) {
 			return nil
 		}
 		return col.SumUint64()
+	}, "合计")
+
+	showData := et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			return cell.eRow.GetName()
+		} else {
+			return cell.Val()
+		}
 	})
+
+	t.Log(showData)
 
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 
@@ -147,15 +174,28 @@ func TestSum2(t *testing.T) {
 
 	et := NewETable()
 
-	AddCol(et, groupByClass.GetKeys(), "grade")
+	// 添加首列
+	AddCol(et, groupByClass.GetKeys(), "年级")
 
+	firstCol := map[int][]interface{}{
+		1: {"一年级", 1},
+		2: {"二年级", 2},
+		3: {"三年级", 3},
+	}
+
+	// 添加各行的排序
+	for _, cell := range et.GetCol(0).Cells() {
+		cell.GetERow().SetName(firstCol[cell.Int()][0].(string)).Sort = firstCol[cell.Int()][1].(int)
+	}
+
+	//  填充汇总各列的数据
 	AddColByFn(et, func(row *ERow, i int) interface{} {
 		return groupByClass.GetValue(row.FirstCell().Int()).Filter(func(student *Student) bool {
 			return student.Class == "一班"
 		}).SumUint64(func(student *Student) uint64 {
 			return uint64(student.Score)
 		})
-	}, "class1")
+	}, "一班")
 
 	AddColByFn(et, func(row *ERow, i int) interface{} {
 		return groupByClass.GetValue(row.FirstCell().Int()).Filter(func(student *Student) bool {
@@ -163,7 +203,7 @@ func TestSum2(t *testing.T) {
 		}).SumUint64(func(student *Student) uint64 {
 			return uint64(student.Score)
 		})
-	}, "class2")
+	}, "二班")
 
 	AddColByFn(et, func(row *ERow, i int) interface{} {
 		return groupByClass.GetValue(row.FirstCell().Int()).Filter(func(student *Student) bool {
@@ -171,20 +211,46 @@ func TestSum2(t *testing.T) {
 		}).SumUint64(func(student *Student) uint64 {
 			return uint64(student.Score)
 		})
-	}, "class3")
+	}, "三班")
 
+	// 最后一列的合计
 	AddColByFn(et, func(row *ERow, i int) interface{} {
 		return row.SumUint64(func(cell *ECell, i int) bool {
 			return i != 0
 		})
-	}, "total")
+	}, "合计")
 
+	et.SortRow(func(row *ERow, row2 *ERow) bool {
+		return row.Sort < row2.Sort
+	})
+
+	// 最后一行的合计
 	AddRowByFn(et, func(col *ECol, i int) interface{} {
 		if i == 0 {
 			return nil
 		}
 		return col.SumUint64()
+	}, "合计")
+
+	showData := et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			return cell.eRow.GetName()
+		} else {
+			return cell.Val()
+		}
 	})
+
+	t.Log(showData)
+
+	// 生成表头
+	header := make([]interface{}, et.ColNum())
+	et.ForCol(func(col *ECol, i int) {
+		header[i] = col.GetName()
+	})
+
+	showData = append([][]interface{}{header}, showData...)
+
+	t.Log(showData)
 
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 

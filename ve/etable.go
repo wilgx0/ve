@@ -145,3 +145,30 @@ func (table *ETable) GetCol(index int) *ECol {
 
 	return table.FirstRow().GetCell(index).GetECol()
 }
+
+func (table *ETable) ForCol(fn func(*ECol, int)) {
+	if table.IsEmpty() {
+		return
+	}
+	for i := 0; i < table.ColNum(); i++ {
+		fn(table.GetCol(i), i)
+	}
+}
+
+func (table *ETable) ToArr(fn func(*ECell, int, int) interface{}) (result [][]interface{}) {
+
+	for rNum, row := range table.eRows {
+		var eRow = make([]interface{}, 0, table.ColNum())
+		for cNum, cell := range row.Cells() {
+			eRow = append(eRow, fn(cell, rNum, cNum))
+		}
+		result = append(result, eRow)
+	}
+	return result
+}
+
+func (table *ETable) SortRow(fn func(*ERow, *ERow) bool) {
+	NewCollection(table.eRows).Sort(func(i, j int) bool {
+		return fn(table.eRows[i], table.eRows[j])
+	})
+}

@@ -1,5 +1,7 @@
 package ve
 
+import "sort"
+
 func AddRow[T any](table *ETable, arr []T, name ...string) {
 	table.AddRow(NewERowByArr(arr, table, name...))
 }
@@ -20,6 +22,10 @@ type Collection[V any] []V
 
 func NewCollection[V any](arr []V) Collection[V] {
 	return arr
+}
+
+func (collection Collection[V]) Sort(fn func(i, j int) bool) {
+	sort.Slice(collection, fn)
 }
 
 func (collection Collection[V]) IsEmpty() bool {

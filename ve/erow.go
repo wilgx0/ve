@@ -2,9 +2,11 @@ package ve
 
 // ERow represents a row in the table.
 type ERow struct {
-	eTable *ETable
-	eCells []*ECell
-	name   string
+	eTable  *ETable
+	eCells  []*ECell
+	name    string
+	payload interface{}
+	Sort    int
 }
 
 func NewERow(et *ETable) *ERow {
@@ -34,8 +36,13 @@ func NewERowByArr[T any](arr []T, et *ETable, name ...string) *ERow {
 	return eRow
 }
 
-func (row *ERow) SetName(name string) {
+func (row *ERow) SetName(name string) *ERow {
 	row.name = name
+	return row
+}
+
+func (row *ERow) GetName() string {
+	return row.name
 }
 
 func (row *ERow) Cells() []*ECell {
@@ -125,4 +132,18 @@ func (row *ERow) SumFloat64(fn ...func(*ECell, int) bool) float64 {
 		sum += cell.Float64()
 	}
 	return sum
+}
+
+func (row *ERow) ToArr(fn func(*ECell, int) interface{}) []interface{} {
+	var arr []interface{}
+	for index, cell := range row.eCells {
+		arr = append(arr, fn(cell, index))
+	}
+	return arr
+}
+
+func (row *ERow) SortCell(fn func(*ECell, *ECell) bool) {
+	NewCollection(row.eCells).Sort(func(i, j int) bool {
+		return fn(row.eCells[i], row.eCells[j])
+	})
 }
