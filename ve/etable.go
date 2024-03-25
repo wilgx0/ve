@@ -85,10 +85,10 @@ func (table *ETable) AddCol(col *ECol) {
 	}
 }
 
-func (table *ETable) AddColByFn(fn func(*ERow, int) interface{}, name ...string) {
+func (table *ETable) AddColByFn(fn func(*ERow, int) interface{}, name ...string) *ECol {
 
 	if table.IsEmpty() {
-		return
+		return nil
 	}
 	eCol := NewECol(table)
 	if len(name) > 0 {
@@ -99,11 +99,12 @@ func (table *ETable) AddColByFn(fn func(*ERow, int) interface{}, name ...string)
 		eCol.AddCell(cell)
 		eRow.AddCell(cell)
 	}
+	return eCol
 }
 
-func (table *ETable) AddRowByFn(fn func(*ECol, int) interface{}, name ...string) {
+func (table *ETable) AddRowByFn(fn func(*ECol, int) interface{}, name ...string) *ERow {
 	if table.IsEmpty() {
-		return
+		return nil
 	}
 	eRow := NewERow(table)
 	if len(name) > 0 {
@@ -116,6 +117,7 @@ func (table *ETable) AddRowByFn(fn func(*ECol, int) interface{}, name ...string)
 		eRow.AddCell(cell)
 	}
 	table.eRows = append(table.eRows, eRow)
+	return eRow
 }
 
 func (table *ETable) IndexOf(row *ERow) int {
@@ -155,6 +157,37 @@ func (table *ETable) ForCol(fn func(*ECol, int)) {
 	}
 }
 
+func (table *ETable) ForRow(fn func(*ERow, int)) {
+	if table.IsEmpty() {
+		return
+	}
+	for i := 0; i < table.RowNum(); i++ {
+		fn(table.GetRow(i), i)
+	}
+}
+
+func (table *ETable) GetElementByCol(fn func(*ECol, int) interface{}) []interface{} {
+	if table.IsEmpty() {
+		return nil
+	}
+	var result = make([]interface{}, 0, table.ColNum())
+	for i := 0; i < table.ColNum(); i++ {
+		result = append(result, fn(table.GetCol(i), i))
+	}
+	return result
+}
+
+func (table *ETable) GetElementByRow(fn func(*ERow, int) interface{}) []interface{} {
+	if table.IsEmpty() {
+		return nil
+	}
+	var result = make([]interface{}, 0, table.RowNum())
+	for i := 0; i < table.RowNum(); i++ {
+		result = append(result, fn(table.GetRow(i), i))
+	}
+	return result
+}
+
 func (table *ETable) ToArr(fn func(*ECell, int, int) interface{}) (result [][]interface{}) {
 
 	for rNum, row := range table.eRows {
@@ -171,4 +204,20 @@ func (table *ETable) SortRow(fn func(*ERow, *ERow) bool) {
 	NewCollection(table.eRows).Sort(func(i, j int) bool {
 		return fn(table.eRows[i], table.eRows[j])
 	})
+}
+
+func (table *ETable) Merge(other *ETable) {
+	if table.IsEmpty() {
+		*table = *other
+		return
+	}
+	if other.IsEmpty() {
+		return
+	}
+	for _, row := range other.eRows {
+		table.eRows = append(table.eRows, row)
+		for i, cell := range row.Cells() {
+			table.FirstRow().GetCell(i).eCol.AddCell(cell)
+		}
+	}
 }

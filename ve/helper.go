@@ -2,20 +2,24 @@ package ve
 
 import "sort"
 
-func AddRow[T any](table *ETable, arr []T, name ...string) {
-	table.AddRow(NewERowByArr(arr, table, name...))
+func AddRow[T any](table *ETable, arr []T, name ...string) *ERow {
+	row := NewERowByArr(arr, table, name...)
+	table.AddRow(row)
+	return row
 }
 
-func AddRowByFn(table *ETable, fn func(*ECol, int) interface{}, name ...string) {
-	table.AddRowByFn(fn, name...)
+func AddRowByFn(table *ETable, fn func(*ECol, int) interface{}, name ...string) *ERow {
+	return table.AddRowByFn(fn, name...)
 }
 
-func AddCol[T any](table *ETable, arr []T, name ...string) {
-	table.AddCol(NewEColByArr(arr, table, name...))
+func AddCol[T any](table *ETable, arr []T, name ...string) *ECol {
+	col := NewEColByArr(arr, table, name...)
+	table.AddCol(col)
+	return col
 }
 
-func AddColByFn(table *ETable, fn func(*ERow, int) interface{}, name ...string) {
-	table.AddColByFn(fn, name...)
+func AddColByFn(table *ETable, fn func(*ERow, int) interface{}, name ...string) *ECol {
+	return table.AddColByFn(fn, name...)
 }
 
 type Collection[V any] []V
@@ -106,4 +110,10 @@ func (m Map[K, V]) GetKeys() []K {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+func (m Map[K, V]) VLookup(table *ETable, keyFn func(*ERow, int) K, ValueFn func(Collection[V]) interface{}, name ...string) {
+	AddColByFn(table, func(row *ERow, i int) interface{} {
+		return ValueFn(m.GetValue(keyFn(row, i)))
+	}, name...)
 }
