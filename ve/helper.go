@@ -1,6 +1,9 @@
 package ve
 
-import "sort"
+import (
+	"encoding/json"
+	"strings"
+)
 
 func AddRow[T any](table *ETable, arr []T, name ...string) *ERow {
 	row := NewERowByArr(arr, table, name...)
@@ -22,98 +25,140 @@ func AddColByFn(table *ETable, fn func(*ERow, int) interface{}, name ...string) 
 	return table.AddColByFn(fn, name...)
 }
 
-type Collection[V any] []V
-
-func NewCollection[V any](arr []V) Collection[V] {
-	return arr
+func AddColByTrie[K comparable, V any](table *ETable, trie *Trie[K, V], name ...string) *ECol {
+	col := NewEColByTrie(trie, table, name...)
+	table.AddCol(col)
+	return col
 }
 
-func (collection Collection[V]) Sort(fn func(i, j int) bool) {
-	sort.Slice(collection, fn)
+type CalculateByTrieOpts[V any] struct {
+	GetVal    func(Collection[V]) interface{}
+	GetFnName func() string
 }
 
-func (collection Collection[V]) IsEmpty() bool {
-	return len(collection) == 0
+func CalculateByTrie[K comparable, V any](table *ETable, trie *Trie[K, V], fns ...CalculateByTrieOpts[V]) {
+	fnCount := len(fns)
+	if table.IsEmpty() || fnCount == 0 {
+		return
+	}
+	bottomTrieArr := trie.Bottom()
+	firstRwo := make([]*ECol, fnCount*len(bottomTrieArr))
+	table.ForRow(func(row *ERow, index int) {
+		rtRie, ok := row.Trie.(*Trie[K, V])
+		if !ok {
+			return
+		}
+		for i, bTire := range bottomTrieArr {
+			for j, opt := range fns {
+				fn, fn2 := opt.GetVal, opt.GetFnName
+				var eCol *ECol
+				if index == 0 {
+					eCol = NewECol(table)
+					firstRwo[i*fnCount+j] = eCol
+				} else {
+					eCol = firstRwo[i*fnCount+j]
+				}
+
+				cell := NewECell(fn(rtRie.List.Intersection(bTire.List, func(v V) interface{} {
+					return v
+				})), table, row, eCol)
+				eCol.AddCell(cell)
+				eCol.Trie = bTire
+				eCol.SetName(bTire.GetKey())
+				eCol.SetFnName(fn2())
+				row.AddCell(cell)
+			}
+		}
+	})
 }
 
-func (collection Collection[V]) Len() int {
-	return len(collection)
+func GetFields[T any, V any](c Collection[V], fn func(V) T) (result []T) {
+	for _, item := range c {
+		result = append(result, fn(item))
+	}
+	return
 }
 
-func (collection Collection[V]) Filter(fn func(V) bool) (result Collection[V]) {
-	for _, item := range collection {
-		if fn(item) {
-			result = append(result, item)
+func Join(arr []string, sep string) string {
+	return strings.Trim(strings.Join(arr, sep), sep)
+}
+
+func ToJson(value interface{}) (string, error) {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func CreateRowHeaderByECol[K comparable, V any](et *ETable, fn func(*Trie[K, V]) string, fillColNames ...string) [][]interface{} {
+	result := et.GetElementByCol(func(col *ECol, i int) interface{} {
+		name := col.GetName()
+		if itemTrie, ok := col.Trie.(*Trie[K, V]); ok {
+			f := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
+				return fn(t)
+			})
+			name = Join(f, "/")
+		}
+		if col.GetFnName() != "" {
+			return name + "/" + col.GetFnName()
+		}
+		return name
+	})
+	if len(fillColNames) > 0 {
+		temp := make([]interface{}, len(fillColNames))
+		for i := 0; i < len(fillColNames); i++ {
+			temp[i] = fillColNames[i]
+		}
+		result = append(temp, result...)
+	}
+	return [][]interface{}{result}
+}
+
+func CreateColHeaderByColCell[K comparable, V any](cell *ECell, fn func(*Trie[K, V]) string) string {
+	name := cell.eRow.GetName()
+	if itemTrie, ok := cell.Trie.(*Trie[K, V]); ok {
+		arr := GetFields(NewCollection(itemTrie.Ancestor()), fn)
+		name = Join(arr, "/")
+	}
+	return name
+}
+
+// 生成列表头
+func CreateTreeColHeader[K comparable, V any](et *ETable) (result [][]interface{}, colNames []string) {
+	var temp [][]string
+	et.ForRow(func(row *ERow, i int) {
+		if itemTrie, ok := row.Trie.(*Trie[K, V]); ok {
+			arr := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
+				return t.GetKey()
+			})
+			if len(arr) > 2 {
+				temp = append(temp, arr[1:len(arr)-1])
+				if colNames == nil {
+					colNames = GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
+						return t.Name
+					})
+					colNames = colNames[0 : len(colNames)-2]
+				}
+			}
+		}
+	})
+
+	if len(temp) > 0 {
+		result = make([][]interface{}, len(temp))
+		for i, arr := range temp {
+			result[i] = make([]interface{}, len(arr))
+			for j, item := range arr {
+				result[i][j] = item
+			}
+		}
+
+		if len(result) < et.RowNum() {
+			for i := et.RowNum() - len(result); i > 0; i-- {
+				result = append(result, make([]interface{}, len(result[0])))
+			}
 		}
 	}
+
 	return
-}
-
-func (collection Collection[V]) GetColumn(fn func(V) string) (result []string) {
-	for _, value := range collection {
-		result = append(result, fn(value))
-	}
-	return
-}
-
-func (collection Collection[V]) SumFloat64(fn func(V) float64) (result float64) {
-	for _, value := range collection {
-		result += fn(value)
-	}
-	return
-}
-
-func (collection Collection[V]) SumUint64(fn func(V) uint64) (result uint64) {
-	for _, value := range collection {
-		result += fn(value)
-	}
-	return
-}
-
-func (collection Collection[V]) Count(fn func(V) bool) int {
-	return collection.Filter(fn).Len()
-}
-
-func (collection Collection[V]) Unique(fn func(V) string) (result Collection[V]) {
-	m := map[string]struct{}{}
-	for _, value := range collection {
-		key := fn(value)
-		if _, ok := m[key]; !ok {
-			m[key] = struct{}{}
-			result = append(result, value)
-		}
-	}
-	return
-}
-
-type Map[K comparable, V any] map[K]Collection[V]
-
-func NewMap[K comparable, V any](arr Collection[V], keyFn func(V) K) Map[K, V] {
-	m := make(Map[K, V])
-	for _, value := range arr {
-		m[keyFn(value)] = append(m[keyFn(value)], value)
-	}
-	return m
-}
-
-func (m Map[K, V]) Len() int {
-	return len(m)
-}
-
-func (m Map[K, V]) GetValue(key K) Collection[V] {
-	return m[key]
-}
-
-func (m Map[K, V]) GetKeys() []K {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (m Map[K, V]) VLookup(table *ETable, keyFn func(*ERow, int) K, ValueFn func(Collection[V]) interface{}, name ...string) {
-	AddColByFn(table, func(row *ERow, i int) interface{} {
-		return ValueFn(m.GetValue(keyFn(row, i)))
-	}, name...)
 }

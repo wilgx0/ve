@@ -9,6 +9,7 @@ type ECell struct {
 	eCol    *ECol
 	value   interface{}
 	payload interface{}
+	Trie    interface{}
 }
 
 // NewECell creates a new ECell instance.
@@ -26,17 +27,10 @@ func (cell *ECell) IsEmpty() bool {
 }
 
 func (cell *ECell) GetERow() *ERow {
-	if cell.IsEmpty() {
-		return nil
-	}
-
 	return cell.eRow
 }
 
 func (cell *ECell) GetECol() *ECol {
-	if cell.IsEmpty() {
-		return nil
-	}
 	return cell.eCol
 }
 

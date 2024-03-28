@@ -86,7 +86,6 @@ func (table *ETable) AddCol(col *ECol) {
 }
 
 func (table *ETable) AddColByFn(fn func(*ERow, int) interface{}, name ...string) *ECol {
-
 	if table.IsEmpty() {
 		return nil
 	}

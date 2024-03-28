@@ -7,6 +7,8 @@ type ERow struct {
 	name    string
 	payload interface{}
 	Sort    int
+	Trie    interface{}
+	fnName  string
 }
 
 func NewERow(et *ETable) *ERow {
@@ -43,6 +45,15 @@ func (row *ERow) SetName(name string) *ERow {
 
 func (row *ERow) GetName() string {
 	return row.name
+}
+
+func (row *ERow) SetFnName(name string) *ERow {
+	row.fnName = name
+	return row
+}
+
+func (row *ERow) GetFnName() string {
+	return row.fnName
 }
 
 func (row *ERow) Cells() []*ECell {

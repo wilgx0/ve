@@ -1,60 +1,44 @@
 package ve
 
-import "testing"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"testing"
+)
 
 type Student struct {
-	Name  string
-	Class string
-	Grade int
-	Score int
+	Name        string `json:"姓名"`   // 姓名
+	Class       string `json:"班级"`   // 班级
+	Grade       int    `json:"年级"`   // 年级
+	Subject     string `json:"科目"`   // 科目
+	SubjectType string `json:"科目类别"` // 科目类别
+	Score       int    `json:"分数"`   // 分数
+	Sex         string `json:"性别"`   // 性别
+	Term        string `json:"学期"`   // 学期
+	AddScore    int    `json:"加分"`   // 加分
 }
 
 func getTestData() []*Student {
-	return []*Student{
-		{
-			Name:  "小明",
-			Class: "一班",
-			Grade: 1,
-			Score: 2,
-		},
-		{
-			Name:  "小张",
-			Class: "一班",
-			Grade: 1,
-			Score: 3,
-		},
-		{
-			Name:  "小王",
-			Class: "二班",
-			Grade: 1,
-			Score: 5,
-		},
-		{
-			Name:  "小李",
-			Class: "二班",
-			Grade: 1,
-			Score: 6,
-		},
-		{
-			Name:  "小赵",
-			Class: "二班",
-			Grade: 2,
-			Score: 7,
-		},
-		{
-			Name:  "小刘",
-			Class: "三班",
-			Grade: 2,
-			Score: 1,
-		},
-		{
-			Name:  "小白",
-			Class: "三班",
-			Grade: 3,
-			Score: 2,
-		},
+	file, err := os.Open("example.json") // 替换为你的JSON文件路径
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return nil
 	}
-
+	defer file.Close()
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return nil
+	}
+	var data []*Student
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return nil
+	}
+	return data
 }
 
 func TestNewMap1(t *testing.T) {
@@ -270,13 +254,13 @@ func TestSum2(t *testing.T) {
 			return cell.Val()
 		}
 	})
-
 	// 生成表头
 	showData = append([][]interface{}{et.GetElementByCol(func(col *ECol, i int) interface{} {
 		return col.GetName()
 	})}, showData...)
-
 	t.Log(showData)
+	jsonStr, _ := ToJson(showData)
+	t.Log(jsonStr)
 
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 
@@ -285,6 +269,7 @@ func TestSum2(t *testing.T) {
 	}
 }
 
+// 表格合并
 func TestMergeTable(t *testing.T) {
 	et1 := NewETable()
 	AddRow(et1, []interface{}{"一年级", 5, 11, 0, 16}, "一年级")
@@ -322,4 +307,419 @@ func TestMergeTable(t *testing.T) {
 		}
 	})
 	t.Log(showData)
+}
+
+func TestTrie1(t *testing.T) {
+	collection := NewCollection(getTestData())
+	trie := NewTrie[string, *Student]("")
+
+	trie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Class
+		},
+		GetName: func() string {
+			return "班级"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func() string {
+			return "姓名"
+		},
+	})
+
+	et := NewETable()
+
+	AddColByTrie(et, trie, "班级/姓名")
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		if itemTrie, ok := row.FirstCell().Trie.(*Trie[string, *Student]); ok {
+			return itemTrie.List.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		} else {
+			return uint64(0)
+		}
+	}, "分数")
+
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			if itemTrie, ok := cell.Trie.(*Trie[string, *Student]); ok {
+				f := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[string, *Student]) string {
+					return t.Key
+				})
+				return Join(f, "/")
+			} else {
+				return ""
+			}
+		} else {
+			return cell.Val()
+		}
+	})
+
+	// 生成表头
+	showData = append([][]interface{}{et.GetElementByCol(func(col *ECol, i int) interface{} {
+		return col.GetName()
+	})}, showData...)
+	t.Log(showData)
+	jsonStr, _ := ToJson(showData)
+	t.Log(jsonStr)
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score) }) {
+		t.Error("total error")
+	}
+}
+
+func TestTrie2(t *testing.T) {
+	collection := NewCollection(getTestData())
+	cTrie := NewTrie[string, *Student]("")
+
+	//列： 班级 / 姓名
+	cTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Class
+		},
+		GetName: func() string {
+			return "班级"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func() string {
+			return "姓名"
+		},
+	})
+
+	//行: 科目类别 / 科目
+	rTrie := NewTrie[string, *Student]("")
+	rTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.SubjectType
+		},
+		GetName: func() string {
+			return "科目类别"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Subject
+		},
+		GetName: func() string {
+			return "科目"
+		},
+	})
+
+	et := NewETable()
+
+	// 添加首列
+	AddColByTrie(et, cTrie, "班级/姓名")
+
+	// 计算
+	//CalculateByTrie(et, rTrie, func(c Collection[*Student]) interface{} {
+	//	return c.SumUint64(func(student *Student) uint64 {
+	//		return uint64(student.Score)
+	//	})
+	//})
+	CalculateByTrie(et, rTrie, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	})
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
+	}, "合计")
+
+	// 最后一行的合计
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			//  生成列头
+			name := cell.eRow.GetName()
+			if itemTrie, ok := cell.Trie.(*Trie[string, *Student]); ok {
+				f := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[string, *Student]) string {
+					return t.Key
+				})
+				name = Join(f, "/")
+			}
+			return name
+		} else {
+			return cell.Val()
+		}
+	})
+
+	// 生成表头
+	showData = append([][]interface{}{et.GetElementByCol(func(col *ECol, i int) interface{} {
+		name := col.GetName()
+		if itemTrie, ok := col.Trie.(*Trie[string, *Student]); ok {
+			f := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[string, *Student]) string {
+				return t.Key
+			})
+			name = Join(f, "/")
+		}
+		return name
+	})}, showData...)
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score) }) {
+		t.Error("total error")
+	}
+}
+
+func TestTrie3(t *testing.T) {
+	collection := NewCollection(getTestData())
+	cTrie := NewTrie[string, *Student]("")
+
+	//列: 学期 / 班级 / 姓名
+	cTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Term
+		},
+		GetName: func() string {
+			return "学期"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Class
+		},
+		GetName: func() string {
+			return "班级"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func() string {
+			return "姓名"
+		},
+	})
+
+	//行: 科目类别 / 科目
+	rTrie := NewTrie[string, *Student]("")
+	rTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.SubjectType
+		},
+		GetName: func() string {
+			return "科目类别"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Subject
+		},
+		GetName: func() string {
+			return "科目"
+		},
+	})
+
+	et := NewETable()
+
+	// 添加首列
+	AddColByTrie(et, cTrie, "学期/班级/姓名")
+
+	// 计算值 : 分数 / 加分项
+	CalculateByTrie(et, rTrie, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	}, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.AddScore)
+			})
+		},
+		GetFnName: func() string {
+			return "加分"
+		},
+	})
+
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
+	}, "合计")
+
+	// 最后一行的合计
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			//  生成列头
+			return CreateColHeaderByColCell(cell, func(t *Trie[string, *Student]) string {
+				return t.Key
+			})
+		} else {
+			return cell.Val()
+		}
+	}))
+
+	// 生成行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(t *Trie[string, *Student]) string {
+		return t.Key
+	})))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
+		t.Error("total error")
+	}
+}
+
+// 生成表头
+func TestHeaderByTrie(t *testing.T) {
+	collection := NewCollection(getTestData())
+	cTrie := NewTrie[string, *Student]("")
+
+	//列: 学期 / 班级 / 姓名
+	cTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Term
+		},
+		GetName: func() string {
+			return "学期"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Class
+		},
+		GetName: func() string {
+			return "班级"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func() string {
+			return "姓名"
+		},
+	})
+
+	//行: 科目类别 / 科目
+	rTrie := NewTrie[string, *Student]("")
+	rTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.SubjectType
+		},
+		GetName: func() string {
+			return "科目类别"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Subject
+		},
+		GetName: func() string {
+			return "科目"
+		},
+	})
+
+	et := NewETable()
+
+	// 添加首列
+	//学期/班级/姓名
+	AddColByTrie(et, cTrie, "姓名")
+
+	// 计算值 : 分数 / 加分项
+	CalculateByTrie(et, rTrie, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	}, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.AddScore)
+			})
+		},
+		GetFnName: func() string {
+			return "加分"
+		},
+	})
+
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
+	}, "合计")
+
+	// 最后一行的合计
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			return cell.GetERow().GetName()
+		} else {
+			return cell.Val()
+		}
+	}))
+
+	// 生成并组合列表头
+	treeColHeader, treeColHeaderNames := CreateTreeColHeader[string, *Student](et)
+	showData = showData.MergeLeft(NewGrid(treeColHeader))
+
+	// 生成并组合行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(t *Trie[string, *Student]) string {
+		return t.Key
+	}, treeColHeaderNames...)))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
+		t.Error("total error")
+	}
+
 }
