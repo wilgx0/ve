@@ -25,6 +25,7 @@ func AddColByFn(table *ETable, fn func(*ERow, int) interface{}, name ...string) 
 	return table.AddColByFn(fn, name...)
 }
 
+// trie会被添加到每一行
 func AddColByTrie[K comparable, V any](table *ETable, trie *Trie[K, V], name ...string) *ECol {
 	col := NewEColByTrie(trie, table, name...)
 	table.AddCol(col)
@@ -36,12 +37,92 @@ type CalculateByTrieOpts[V any] struct {
 	GetFnName func() string
 }
 
-func CalculateByTrie[K comparable, V any](table *ETable, trie *Trie[K, V], fns ...CalculateByTrieOpts[V]) {
+// 数据区的统计
+func CalculateByTrie3[K comparable, V any](table *ETable, c Collection[V], fns ...CalculateByTrieOpts[V]) {
+	fnCount := len(fns)
+	if !table.IsEmpty() || fnCount == 0 {
+		return
+	}
+	eRow := NewERow(table)
+	for _, opt := range fns {
+		fn, fn2 := opt.GetVal, opt.GetFnName
+		var eCol *ECol
+		eCol = NewECol(table)
+		cell := NewECell(fn(c), table, eRow, eCol)
+		eCol.AddCell(cell)
+		eCol.SetName(fn2())
+		eCol.SetFnName(fn2())
+		eRow.AddCell(cell)
+	}
+	table.eRows = append(table.eRows, eRow)
+}
+
+// 列及数据区域的统计
+func CalculateByTrie2[K comparable, V any](table *ETable, rowTrie *Trie[K, V], fns ...CalculateByTrieOpts[V]) {
+	fnCount := len(fns)
+	if !table.IsEmpty() {
+		return
+	}
+	bottomTrieArr := rowTrie.Bottom()
+	if len(bottomTrieArr) == 0 || fnCount == 0 {
+		return
+	}
+	eRow := NewERow(table)
+	for _, bTire := range bottomTrieArr {
+		for _, opt := range fns {
+			fn, fn2 := opt.GetVal, opt.GetFnName
+			var eCol *ECol
+			eCol = NewECol(table)
+			cell := NewECell(fn(bTire.List), table, eRow, eCol)
+			eCol.AddCell(cell)
+			eCol.Trie = bTire
+			eCol.SetName(bTire.GetKey())
+			eCol.SetFnName(fn2())
+			eRow.AddCell(cell)
+		}
+	}
+	table.eRows = append(table.eRows, eRow)
+}
+
+// 行及数据区域的统计
+func CalculateByTrie1[K comparable, V any](table *ETable, fns ...CalculateByTrieOpts[V]) {
 	fnCount := len(fns)
 	if table.IsEmpty() || fnCount == 0 {
 		return
 	}
-	bottomTrieArr := trie.Bottom()
+	firstRwo := make([]*ECol, fnCount)
+	table.ForRow(func(row *ERow, index int) {
+		rtRie, ok := row.Trie.(*Trie[K, V])
+		if !ok {
+			return
+		}
+		for j, opt := range fns {
+			fn, fn2 := opt.GetVal, opt.GetFnName
+			var eCol *ECol
+			if index == 0 {
+				eCol = NewECol(table)
+				firstRwo[j] = eCol
+			} else {
+				eCol = firstRwo[j]
+			}
+			cell := NewECell(fn(rtRie.List), table, row, eCol)
+			eCol.AddCell(cell)
+			eCol.SetName(fn2())
+			eCol.SetFnName(fn2())
+			row.AddCell(cell)
+		}
+
+	})
+
+}
+
+// 行、列及数据区域的统计
+func CalculateByTrie[K comparable, V any](table *ETable, rowTrie *Trie[K, V], fns ...CalculateByTrieOpts[V]) {
+	fnCount := len(fns)
+	if table.IsEmpty() || fnCount == 0 {
+		return
+	}
+	bottomTrieArr := rowTrie.Bottom()
 	firstRwo := make([]*ECol, fnCount*len(bottomTrieArr))
 	table.ForRow(func(row *ERow, index int) {
 		rtRie, ok := row.Trie.(*Trie[K, V])
@@ -91,7 +172,23 @@ func ToJson(value interface{}) (string, error) {
 	return string(b), nil
 }
 
-func CreateRowHeaderByECol[K comparable, V any](et *ETable, fn func(*Trie[K, V]) string, fillColNames ...string) [][]interface{} {
+// 生成行表头
+func CreateRowHeaderByECol(et *ETable, fn func(*ECol, int) string, fillColNames ...string) [][]interface{} {
+	result := et.GetElementByCol(func(col *ECol, i int) interface{} {
+		return fn(col, i)
+	})
+	if len(fillColNames) > 0 {
+		temp := make([]interface{}, len(fillColNames))
+		for i := 0; i < len(fillColNames); i++ {
+			temp[i] = fillColNames[i]
+		}
+		result = append(temp, result...)
+	}
+	return [][]interface{}{result}
+}
+
+// 生成行表头
+func CreateRowHeaderByEColTrie[K comparable, V any](et *ETable, fn func(*Trie[K, V]) string, fillColNames ...string) [][]interface{} {
 	result := et.GetElementByCol(func(col *ECol, i int) interface{} {
 		name := col.GetName()
 		if itemTrie, ok := col.Trie.(*Trie[K, V]); ok {
@@ -115,6 +212,7 @@ func CreateRowHeaderByECol[K comparable, V any](et *ETable, fn func(*Trie[K, V])
 	return [][]interface{}{result}
 }
 
+// 获取列字段的名称
 func CreateColHeaderByColCell[K comparable, V any](cell *ECell, fn func(*Trie[K, V]) string) string {
 	name := cell.eRow.GetName()
 	if itemTrie, ok := cell.Trie.(*Trie[K, V]); ok {
@@ -124,7 +222,7 @@ func CreateColHeaderByColCell[K comparable, V any](cell *ECell, fn func(*Trie[K,
 	return name
 }
 
-// 生成列表头
+// 生成多级列表头
 func CreateTreeColHeader[K comparable, V any](et *ETable) (result [][]interface{}, colNames []string) {
 	var temp [][]string
 	et.ForRow(func(row *ERow, i int) {

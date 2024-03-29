@@ -258,9 +258,10 @@ func TestSum2(t *testing.T) {
 	showData = append([][]interface{}{et.GetElementByCol(func(col *ECol, i int) interface{} {
 		return col.GetName()
 	})}, showData...)
-	t.Log(showData)
-	jsonStr, _ := ToJson(showData)
-	t.Log(jsonStr)
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
 
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 
@@ -368,9 +369,11 @@ func TestTrie1(t *testing.T) {
 	showData = append([][]interface{}{et.GetElementByCol(func(col *ECol, i int) interface{} {
 		return col.GetName()
 	})}, showData...)
-	t.Log(showData)
-	jsonStr, _ := ToJson(showData)
-	t.Log(jsonStr)
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 
 	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score) }) {
@@ -591,7 +594,7 @@ func TestTrie3(t *testing.T) {
 	}))
 
 	// 生成行表头
-	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(t *Trie[string, *Student]) string {
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByEColTrie(et, func(t *Trie[string, *Student]) string {
 		return t.Key
 	})))
 
@@ -606,8 +609,8 @@ func TestTrie3(t *testing.T) {
 	}
 }
 
-// 生成表头
-func TestHeaderByTrie(t *testing.T) {
+// 行、列及数据区域的统计, 且生成了多级列头
+func TestTrie4(t *testing.T) {
 	collection := NewCollection(getTestData())
 	cTrie := NewTrie[string, *Student]("")
 
@@ -708,7 +711,7 @@ func TestHeaderByTrie(t *testing.T) {
 	showData = showData.MergeLeft(NewGrid(treeColHeader))
 
 	// 生成并组合行表头
-	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(t *Trie[string, *Student]) string {
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByEColTrie(et, func(t *Trie[string, *Student]) string {
 		return t.Key
 	}, treeColHeaderNames...)))
 
@@ -722,4 +725,221 @@ func TestHeaderByTrie(t *testing.T) {
 		t.Error("total error")
 	}
 
+}
+
+// 行及数据区域的统计
+func TestTrie5(t *testing.T) {
+	collection := NewCollection(getTestData())
+	cTrie := NewTrie[string, *Student]("")
+
+	//列: 学期 / 班级 / 姓名
+	cTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Term
+		},
+		GetName: func() string {
+			return "学期"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Class
+		},
+		GetName: func() string {
+			return "班级"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func() string {
+			return "姓名"
+		},
+	})
+
+	et := NewETable()
+
+	// 添加首列
+	//学期/班级/姓名
+	AddColByTrie(et, cTrie, "姓名")
+
+	// 计算
+	CalculateByTrie1[string, *Student](et, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	}, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.AddScore)
+			})
+		},
+		GetFnName: func() string {
+			return "加分"
+		},
+	})
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
+	}, "合计")
+
+	// 最后一行的合计
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			return cell.GetERow().GetName()
+		} else {
+			return cell.Val()
+		}
+	}))
+
+	// 生成并组合列表头
+	treeColHeader, treeColHeaderNames := CreateTreeColHeader[string, *Student](et)
+	showData = showData.MergeLeft(NewGrid(treeColHeader))
+
+	// 生成并组合行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(col *ECol, i int) string {
+		return col.GetName()
+	}, treeColHeaderNames...)))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
+		t.Error("total error")
+	}
+
+}
+
+// 列及数据区域的统计
+func TestTrie6(t *testing.T) {
+	collection := NewCollection(getTestData())
+	//行: 科目类别 / 科目
+	rTrie := NewTrie[string, *Student]("")
+	rTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.SubjectType
+		},
+		GetName: func() string {
+			return "科目类别"
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Subject
+		},
+		GetName: func() string {
+			return "科目"
+		},
+	})
+
+	et := NewETable()
+	CalculateByTrie2[string, *Student](et, rTrie, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	}, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.AddScore)
+			})
+		},
+		GetFnName: func() string {
+			return "加分"
+		},
+	})
+
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		return cell.Val()
+	}))
+
+	// 生成并组合行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByEColTrie(et, func(t *Trie[string, *Student]) string {
+		return t.Key
+	})))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
+		t.Error("total error")
+	}
+
+}
+
+// 数据区域的统计
+func TestTrie7(t *testing.T) {
+	collection := NewCollection(getTestData())
+	et := NewETable()
+
+	CalculateByTrie3[string, *Student](et, collection, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	}, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.AddScore)
+			})
+		},
+		GetFnName: func() string {
+			return "加分"
+		},
+	})
+
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		return cell.Val()
+	}))
+
+	// 生成并组合行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(col *ECol, i int) string {
+		return col.GetName()
+	})))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
+		t.Error("total error")
+	}
 }

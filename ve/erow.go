@@ -122,22 +122,37 @@ func (row *ERow) IndexOf(cell *ECell) int {
 	return -1
 }
 
-func (row *ERow) SumUint64(fn ...func(*ECell, int) bool) uint64 {
+func (row *ERow) SumUint64(fns ...func(*ECell, int) bool) uint64 {
 	var sum uint64
+
+	fn := func(*ECell, int) bool {
+		return true
+	}
+	if len(fns) > 0 {
+		fn = fns[0]
+	}
+
 	for i, cell := range row.eCells {
-		if len(fn) > 0 && !fn[0](cell, i) {
+		if !fn(cell, i) {
 			continue
 		}
-
 		sum += cell.Uint64()
 	}
 	return sum
 }
 
-func (row *ERow) SumFloat64(fn ...func(*ECell, int) bool) float64 {
+func (row *ERow) SumFloat64(fns ...func(*ECell, int) bool) float64 {
 	var sum float64
+
+	fn := func(*ECell, int) bool {
+		return true
+	}
+	if len(fns) > 0 {
+		fn = fns[0]
+	}
+
 	for i, cell := range row.eCells {
-		if len(fn) > 0 && !fn[0](cell, i) {
+		if !fn(cell, i) {
 			continue
 		}
 		sum += cell.Float64()
