@@ -26,20 +26,22 @@ func (t *Trie[K, V]) GetChildren() (result []*Trie[K, V]) {
 	return
 }
 
-func (t *Trie[K, V]) insert(list Collection[V], fn func(V) K) {
+func (t *Trie[K, V]) insert(list Collection[V], opt TrieInsertOpt[K, V]) {
+	fn, getName := opt.Fn, opt.GetName
 	for _, value := range list {
 		node, ok := t.Children[fn(value)]
 		if !ok {
 			node = NewTrie[K, V](fn(value))
 			t.Children[fn(value)] = node
 		}
+		node.Name = getName(value)
 		node.List = append(node.List, value)
 	}
 }
 
 type TrieInsertOpt[K comparable, V any] struct {
 	Fn      func(V) K
-	GetName func() string
+	GetName func(V) string
 }
 
 func (t *Trie[K, V]) Insert(list Collection[V], fns ...TrieInsertOpt[K, V]) {
@@ -48,16 +50,14 @@ func (t *Trie[K, V]) Insert(list Collection[V], fns ...TrieInsertOpt[K, V]) {
 	}
 	queue := []*Trie[K, V]{t}
 	for i, opt := range fns {
-		f, getName := opt.Fn, opt.GetName
 		for ql := len(queue); ql > 0; ql-- {
 			var node *Trie[K, V]
 			node, queue = queue[0], queue[1:]
 			if i == 0 {
-				node.insert(list, f)
+				node.insert(list, opt)
 			} else {
-				node.insert(node.List, f)
+				node.insert(node.List, opt)
 			}
-			node.Name = getName()
 			for _, child := range node.Children {
 				child.Last = node
 				queue = append(queue, child)

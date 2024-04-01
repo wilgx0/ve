@@ -192,10 +192,10 @@ func CreateRowHeaderByEColTrie[K comparable, V any](et *ETable, fn func(*Trie[K,
 	result := et.GetElementByCol(func(col *ECol, i int) interface{} {
 		name := col.GetName()
 		if itemTrie, ok := col.Trie.(*Trie[K, V]); ok {
-			f := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
+			strArr := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
 				return fn(t)
 			})
-			name = Join(f, "/")
+			name = Join(strArr, "/")
 		}
 		if col.GetFnName() != "" {
 			return name + "/" + col.GetFnName()
@@ -223,21 +223,15 @@ func CreateColHeaderByColCell[K comparable, V any](cell *ECell, fn func(*Trie[K,
 }
 
 // 生成多级列表头
-func CreateTreeColHeader[K comparable, V any](et *ETable) (result [][]interface{}, colNames []string) {
+func CreateTreeColHeader[K comparable, V any](et *ETable, fn func(*Trie[K, V]) string) (result [][]interface{}) {
 	var temp [][]string
 	et.ForRow(func(row *ERow, i int) {
 		if itemTrie, ok := row.Trie.(*Trie[K, V]); ok {
 			arr := GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
-				return t.GetKey()
+				return fn(t)
 			})
 			if len(arr) > 2 {
 				temp = append(temp, arr[1:len(arr)-1])
-				if colNames == nil {
-					colNames = GetFields(NewCollection(itemTrie.Ancestor()), func(t *Trie[K, V]) string {
-						return t.Name
-					})
-					colNames = colNames[0 : len(colNames)-2]
-				}
 			}
 		}
 	})

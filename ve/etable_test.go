@@ -318,15 +318,15 @@ func TestTrie1(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.Class
 		},
-		GetName: func() string {
-			return "班级"
+		GetName: func(student *Student) string {
+			return student.Class
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Name
 		},
-		GetName: func() string {
-			return "姓名"
+		GetName: func(student *Student) string {
+			return student.Name
 		},
 	})
 
@@ -390,15 +390,15 @@ func TestTrie2(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.Class
 		},
-		GetName: func() string {
-			return "班级"
+		GetName: func(student *Student) string {
+			return student.Class
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Name
 		},
-		GetName: func() string {
-			return "姓名"
+		GetName: func(student *Student) string {
+			return student.Name
 		},
 	})
 
@@ -408,15 +408,15 @@ func TestTrie2(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.SubjectType
 		},
-		GetName: func() string {
-			return "科目类别"
+		GetName: func(student *Student) string {
+			return student.SubjectType
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Subject
 		},
-		GetName: func() string {
-			return "科目"
+		GetName: func(student *Student) string {
+			return student.Subject
 		},
 	})
 
@@ -504,22 +504,22 @@ func TestTrie3(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.Term
 		},
-		GetName: func() string {
-			return "学期"
+		GetName: func(student *Student) string {
+			return student.Term
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Class
 		},
-		GetName: func() string {
-			return "班级"
+		GetName: func(student *Student) string {
+			return student.Class
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Name
 		},
-		GetName: func() string {
-			return "姓名"
+		GetName: func(student *Student) string {
+			return student.Name
 		},
 	})
 
@@ -529,15 +529,15 @@ func TestTrie3(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.SubjectType
 		},
-		GetName: func() string {
-			return "科目类别"
+		GetName: func(student *Student) string {
+			return student.SubjectType
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Subject
 		},
-		GetName: func() string {
-			return "科目"
+		GetName: func(student *Student) string {
+			return student.Subject
 		},
 	})
 
@@ -619,22 +619,22 @@ func TestTrie4(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.Term
 		},
-		GetName: func() string {
-			return "学期"
+		GetName: func(student *Student) string {
+			return student.Term
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Class
 		},
-		GetName: func() string {
-			return "班级"
+		GetName: func(student *Student) string {
+			return student.Class
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Name
 		},
-		GetName: func() string {
-			return "姓名"
+		GetName: func(student *Student) string {
+			return student.Name
 		},
 	})
 
@@ -644,15 +644,15 @@ func TestTrie4(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.SubjectType
 		},
-		GetName: func() string {
-			return "科目类别"
+		GetName: func(student *Student) string {
+			return student.SubjectType
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Subject
 		},
-		GetName: func() string {
-			return "科目"
+		GetName: func(student *Student) string {
+			return student.Subject
 		},
 	})
 
@@ -707,17 +707,18 @@ func TestTrie4(t *testing.T) {
 	}))
 
 	// 生成并组合列表头
-	treeColHeader, treeColHeaderNames := CreateTreeColHeader[string, *Student](et)
+	treeColHeader := CreateTreeColHeader[string, *Student](et, func(t *Trie[string, *Student]) string {
+		return t.Name
+	})
 	showData = showData.MergeLeft(NewGrid(treeColHeader))
 
 	// 生成并组合行表头
 	showData = showData.MergeTop(NewGrid(CreateRowHeaderByEColTrie(et, func(t *Trie[string, *Student]) string {
-		return t.Key
-	}, treeColHeaderNames...)))
+		return t.Name
+	}, []string{"学期", "班级"}...)))
 
-	//t.Log(showData)
-	//jsonStr, _ := ToJson(showData)
-	//t.Log(jsonStr)
+	jsonStr, _ := ToJson(showData)
+	t.Log(jsonStr)
 
 	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
 	t.Logf("total: %d", total.Uint64())
@@ -737,22 +738,22 @@ func TestTrie5(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.Term
 		},
-		GetName: func() string {
-			return "学期"
+		GetName: func(student *Student) string {
+			return student.Term
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Class
 		},
-		GetName: func() string {
-			return "班级"
+		GetName: func(student *Student) string {
+			return student.Class
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Name
 		},
-		GetName: func() string {
-			return "姓名"
+		GetName: func(student *Student) string {
+			return student.Name
 		},
 	})
 
@@ -806,13 +807,15 @@ func TestTrie5(t *testing.T) {
 	}))
 
 	// 生成并组合列表头
-	treeColHeader, treeColHeaderNames := CreateTreeColHeader[string, *Student](et)
+	treeColHeader := CreateTreeColHeader[string, *Student](et, func(t *Trie[string, *Student]) string {
+		return t.Name
+	})
 	showData = showData.MergeLeft(NewGrid(treeColHeader))
 
 	// 生成并组合行表头
 	showData = showData.MergeTop(NewGrid(CreateRowHeaderByECol(et, func(col *ECol, i int) string {
 		return col.GetName()
-	}, treeColHeaderNames...)))
+	}, []string{"学期", "班级"}...)))
 
 	//t.Log(showData)
 	//jsonStr, _ := ToJson(showData)
@@ -835,15 +838,15 @@ func TestTrie6(t *testing.T) {
 		Fn: func(student *Student) string {
 			return student.SubjectType
 		},
-		GetName: func() string {
-			return "科目类别"
+		GetName: func(student *Student) string {
+			return student.SubjectType
 		},
 	}, TrieInsertOpt[string, *Student]{
 		Fn: func(student *Student) string {
 			return student.Subject
 		},
-		GetName: func() string {
-			return "科目"
+		GetName: func(student *Student) string {
+			return student.Subject
 		},
 	})
 
@@ -942,4 +945,108 @@ func TestTrie7(t *testing.T) {
 	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score + student.AddScore) }) {
 		t.Error("total error")
 	}
+}
+
+// 测试trie的字段名称
+func TestTrie8(t *testing.T) {
+	collection := NewCollection(getTestData())
+	cTrie := NewTrie[string, *Student]("")
+
+	//列:  年级 / 姓名
+	cTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return String(student.Grade)
+		},
+		GetName: func(student *Student) string {
+			if student.Grade == 1 {
+				return "一年级"
+			} else if student.Grade == 2 {
+				return "二年级"
+			} else if student.Grade == 3 {
+				return "三年级"
+			}
+
+			return ""
+		},
+	}, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.Name
+		},
+		GetName: func(student *Student) string {
+			return student.Name
+		},
+	})
+
+	//行: 科目类别
+	rTrie := NewTrie[string, *Student]("")
+	rTrie.Insert(collection, TrieInsertOpt[string, *Student]{
+		Fn: func(student *Student) string {
+			return student.SubjectType
+		},
+		GetName: func(student *Student) string {
+			return student.SubjectType
+		},
+	})
+
+	et := NewETable()
+
+	// 添加首列
+	AddColByTrie(et, cTrie, "姓名")
+
+	// 计算值 : 分数 / 加分项
+	CalculateByTrie(et, rTrie, CalculateByTrieOpts[*Student]{
+		GetVal: func(c Collection[*Student]) interface{} {
+			return c.SumUint64(func(student *Student) uint64 {
+				return uint64(student.Score)
+			})
+		},
+		GetFnName: func() string {
+			return "分数"
+		},
+	})
+
+	// 最后一列的合计
+	AddColByFn(et, func(row *ERow, i int) interface{} {
+		return row.SumUint64(func(cell *ECell, i int) bool {
+			return i != 0
+		})
+	}, "合计")
+
+	// 最后一行的合计
+	AddRowByFn(et, func(col *ECol, i int) interface{} {
+		if i == 0 {
+			return nil
+		}
+		return col.SumUint64()
+	}, "合计")
+
+	showData := NewGrid(et.ToArr(func(cell *ECell, rN int, cN int) interface{} {
+		if cN == 0 {
+			return cell.GetERow().GetName()
+		} else {
+			return cell.Val()
+		}
+	}))
+
+	// 生成并组合列表头
+	treeColHeader := CreateTreeColHeader[string, *Student](et, func(t *Trie[string, *Student]) string {
+		return t.Name
+	})
+	showData = showData.MergeLeft(NewGrid(treeColHeader))
+
+	// 生成并组合行表头
+	showData = showData.MergeTop(NewGrid(CreateRowHeaderByEColTrie(et, func(t *Trie[string, *Student]) string {
+		return t.Name
+	}, "年级")))
+
+	//t.Log(showData)
+	//jsonStr, _ := ToJson(showData)
+	//t.Log(jsonStr)
+
+	total := et.GetCell(et.RowNum()-1, et.ColNum()-1)
+	t.Logf("total: %d", total.Uint64())
+	if total.Uint64() != collection.SumUint64(func(student *Student) uint64 { return uint64(student.Score) }) {
+		t.Error("total error")
+	}
+
 }
