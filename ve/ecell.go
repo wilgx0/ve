@@ -22,6 +22,10 @@ func NewECell(value interface{}, et *ETable, er *ERow, ec *ECol) *ECell {
 	}
 }
 
+func (cell *ECell) GetPayload() interface{} {
+	return cell.payload
+}
+
 func (cell *ECell) IsEmpty() bool {
 	return cell == nil || cell.value == nil
 }

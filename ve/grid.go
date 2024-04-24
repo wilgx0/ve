@@ -6,6 +6,10 @@ func NewGrid(data [][]interface{}) Grid {
 	return data
 }
 
+func (g Grid) IsEmpty() bool {
+	return len(g) == 0
+}
+
 func (g Grid) RowNum() int {
 	return len(g)
 }
@@ -18,6 +22,9 @@ func (g Grid) ColNum() int {
 }
 
 func (g Grid) MergeLeft(other Grid) (result Grid) {
+	if other.IsEmpty() {
+		return g
+	}
 	for i, item := range other {
 		item = append(item, g[i]...)
 		result = append(result, item)

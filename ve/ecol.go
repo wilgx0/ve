@@ -50,7 +50,7 @@ func NewEColByTrie[K comparable, V any](trie *Trie[K, V], et *ETable, name ...st
 		ec := NewECell(trieArr[i].Key, et, row, eCol)
 		ec.Trie = trieArr[i]
 		row.Trie = trieArr[i]
-		row.SetName(trieArr[i].GetKey())
+		row.SetName(trieArr[i].Name)
 		eCol.AddCell(ec)
 	}
 	if len(name) > 0 {

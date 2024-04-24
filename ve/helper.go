@@ -2,6 +2,7 @@ package ve
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 )
 
@@ -49,6 +50,7 @@ func CalculateByTrie3[K comparable, V any](table *ETable, c Collection[V], fns .
 		var eCol *ECol
 		eCol = NewECol(table)
 		cell := NewECell(fn(c), table, eRow, eCol)
+		cell.payload = c
 		eCol.AddCell(cell)
 		eCol.SetName(fn2())
 		eCol.SetFnName(fn2())
@@ -74,6 +76,7 @@ func CalculateByTrie2[K comparable, V any](table *ETable, rowTrie *Trie[K, V], f
 			var eCol *ECol
 			eCol = NewECol(table)
 			cell := NewECell(fn(bTire.List), table, eRow, eCol)
+			cell.payload = bTire.List
 			eCol.AddCell(cell)
 			eCol.Trie = bTire
 			eCol.SetName(bTire.GetKey())
@@ -106,6 +109,7 @@ func CalculateByTrie1[K comparable, V any](table *ETable, fns ...CalculateByTrie
 				eCol = firstRwo[j]
 			}
 			cell := NewECell(fn(rtRie.List), table, row, eCol)
+			cell.payload = rtRie.List
 			eCol.AddCell(cell)
 			eCol.SetName(fn2())
 			eCol.SetFnName(fn2())
@@ -114,6 +118,30 @@ func CalculateByTrie1[K comparable, V any](table *ETable, fns ...CalculateByTrie
 
 	})
 
+}
+
+func Calculate[K comparable, V any](cTrie *Trie[K, V], rTrie *Trie[K, V], c Collection[V], fns ...CalculateByTrieOpts[V]) (et *ETable) {
+	et = NewETable()
+	if len(fns) == 0 {
+		return
+	}
+	// 行、列、数据区域
+	if !cTrie.IsEmpty() && !rTrie.IsEmpty() {
+		AddColByTrie(et, cTrie, cTrie.RootName)
+		CalculateByTrie[K, V](et, rTrie, fns...)
+	} else if !cTrie.IsEmpty() {
+		// 列、数据区域
+		AddColByTrie(et, cTrie, cTrie.RootName)
+		CalculateByTrie1[K, V](et, fns...)
+	} else if !rTrie.IsEmpty() {
+		// 行及数据区域
+		CalculateByTrie2[K, V](et, rTrie, fns...)
+	} else {
+		// 数据区域的统计
+		CalculateByTrie3[K, V](et, c, fns...)
+	}
+
+	return
 }
 
 // 行、列及数据区域的统计
@@ -140,9 +168,11 @@ func CalculateByTrie[K comparable, V any](table *ETable, rowTrie *Trie[K, V], fn
 					eCol = firstRwo[i*fnCount+j]
 				}
 
-				cell := NewECell(fn(rtRie.List.Intersection(bTire.List, func(v V) interface{} {
+				intersection := rtRie.List.Intersection(bTire.List, func(v V) interface{} {
 					return v
-				})), table, row, eCol)
+				})
+				cell := NewECell(fn(intersection), table, row, eCol)
+				cell.payload = intersection
 				eCol.AddCell(cell)
 				eCol.Trie = bTire
 				eCol.SetName(bTire.GetKey())
@@ -251,6 +281,13 @@ func CreateTreeColHeader[K comparable, V any](et *ETable, fn func(*Trie[K, V]) s
 			}
 		}
 	}
-
 	return
+}
+
+func Round(f float64, n int) float64 {
+	// 计算需要乘以的10的幂次
+	pow := math.Pow(10, float64(n))
+	// 四舍五入
+	rounded := math.Round(f*pow) / pow
+	return rounded
 }

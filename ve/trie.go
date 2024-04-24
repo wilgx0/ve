@@ -6,6 +6,7 @@ type Trie[K comparable, V any] struct {
 	List     Collection[V]
 	Key      K
 	Name     string
+	RootName string
 }
 
 func NewTrie[K comparable, V any](key K) *Trie[K, V] {
@@ -13,6 +14,10 @@ func NewTrie[K comparable, V any](key K) *Trie[K, V] {
 		Key:      key,
 		Children: make(map[K]*Trie[K, V]),
 	}
+}
+
+func (t *Trie[K, V]) IsEmpty() bool {
+	return t == nil || len(t.Children) == 0
 }
 
 func (t *Trie[K, V]) GetKey() string {
